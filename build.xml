@@ -1187,7 +1187,7 @@ public class SortingAlgorithmsTest {
         <property name="total.targets.executed" value="12"/>
         
         <!-- Test statistics will be set dynamically by test target -->
-        <!-- Default values in case test target wasn't run -->
+        <!-- Only set default values if test variables are not already set -->
         <property name="test.total" value="11"/>
         <property name="test.passed" value="0"/>
         <property name="test.pass.rate" value="0"/>
@@ -1257,8 +1257,11 @@ public class SortingAlgorithmsTest {
     </target>
 
     <!-- DEFAULT TARGET - Complete Build with All Tasks (Fulfills Requirements) -->
-    <target name="all" depends="cd,generate-clean-log" 
+    <target name="all" depends="cd" 
             description="Execute complete CI/CD pipeline with all required tasks">
+        <!-- Generate clean log after all builds are complete -->
+        <antcall target="generate-clean-log"/>
+        
         <echo message=""/>
         <echo message="================================================================================"/>
         <echo message="PRACTICE_01 ADVANCED: ALL TASKS COMPLETED SUCCESSFULLY"/>
