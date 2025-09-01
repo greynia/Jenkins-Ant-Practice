@@ -1,5 +1,3 @@
-1. 必要的 Jenkins Plugins
-
   必裝 Plugins
 
   # 在 Jenkins > Manage Jenkins > Manage Plugins > Available 搜尋並安裝:
