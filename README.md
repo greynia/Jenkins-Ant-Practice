@@ -1,6 +1,4 @@
-1. 必要的 Jenkins Plugins
-
-  🔧 必裝 Plugins
+  必裝 Plugins
 
   # 在 Jenkins > Manage Jenkins > Manage Plugins > Available 搜尋並安裝:
   - Ant Plugin
@@ -12,7 +10,7 @@
   - Build Timeout Plugin
   - Workspace Cleanup Plugin
 
-  📦 Plugin 安裝指令 (Docker 啟動時)
+  Plugin 安裝指令 (Docker 啟動時)
 
   # 如果你用 Docker，可以預裝 plugins
   FROM jenkins/jenkins:lts
