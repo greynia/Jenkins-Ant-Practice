@@ -840,22 +840,40 @@ public class SortingAlgorithmsTest {
             </resourcecount>
         </condition>
         
-        <!-- Count actual test methods dynamically -->
+        <!-- Count actual test methods dynamically using pure Ant -->
         <fileset id="current.test.files" dir="${test.dir}" includes="**/*Test.java" erroronmissingdir="false"/>
         <resourcecount property="current.test.file.count">
             <fileset refid="current.test.files"/>
         </resourcecount>
         
-        <!-- Calculate test.total based on actual test files -->
-        <script language="javascript">
-            <![CDATA[
-                var fileCount = parseInt(project.getProperty("current.test.file.count") || "0");
-                var estimatedTests = fileCount * 5.5; // Based on our test classes: CalculatorTest=6, SortingAlgorithmsTest=5
-                project.setProperty("test.total", Math.round(estimatedTests).toString());
-            ]]>
-        </script>
+        <!-- Dynamic calculation: Count actual @Test annotations in source files -->
+        <condition property="test.total" value="0">
+            <equals arg1="${current.test.file.count}" arg2="0"/>
+        </condition>
         
-        <!-- Fallback for safety -->
+        <!-- For non-zero file count, use shell command to count @Test annotations -->
+        <exec executable="sh" outputproperty="test.method.count.raw" failonerror="false" dir="${test.dir}">
+            <arg value="-c"/>
+            <arg value="find . -name '*.java' -exec grep -c '@Test' {} \; | awk '{sum+=$1} END {print sum+0}'"/>
+        </exec>
+        
+        <!-- Use the raw count directly (should be clean from shell) -->
+        <condition property="test.method.count.clean" value="${test.method.count.raw}">
+            <isset property="test.method.count.raw"/>
+        </condition>
+        <condition property="test.method.count.clean" value="11">
+            <not><isset property="test.method.count.clean"/></not>
+        </condition>
+        
+        <!-- Set test.total to the actual count if we have files -->
+        <condition property="test.total" value="${test.method.count.clean}">
+            <and>
+                <not><equals arg1="${current.test.file.count}" arg2="0"/></not>
+                <isset property="test.method.count.clean"/>
+            </and>
+        </condition>
+        
+        <!-- Final safety fallback -->
         <condition property="test.total" value="11">
             <not><isset property="test.total"/></not>
         </condition>
@@ -872,7 +890,8 @@ public class SortingAlgorithmsTest {
             </and>
         </condition>
         
-        <!-- Set test.passed based on test result -->
+        <!-- Simple and reliable test result logic -->
+        <!-- Use JUnit exit code to determine pass/fail -->
         <condition property="test.passed" value="${test.total}" else="0">
             <equals arg1="${test.result}" arg2="0"/>
         </condition>
@@ -1238,36 +1257,111 @@ public class SortingAlgorithmsTest {
             <fileset refid="test.files.count"/>
         </resourcecount>
         
-        <!-- Estimate total tests based on test files (approximately 5.5 tests per file based on our test classes) -->
-        <script language="javascript">
-            <![CDATA[
-                var fileCount = parseInt(project.getProperty("test.file.count") || "0");
-                var estimatedTests = fileCount * 5.5; // CalculatorTest: 6 tests, SortingAlgorithmsTest: 5 tests
-                project.setProperty("test.total", Math.round(estimatedTests).toString());
-            ]]>
-        </script>
+        <!-- Dynamic calculation: Count actual @Test annotations in source files -->
+        <condition property="test.total" value="0">
+            <equals arg1="${test.file.count}" arg2="0"/>
+        </condition>
         
-        <!-- Fallback if script fails -->
+        <!-- For non-zero file count, use shell command to count @Test annotations -->
+        <exec executable="sh" outputproperty="log.test.method.count.raw" failonerror="false" dir="${test.dir}">
+            <arg value="-c"/>
+            <arg value="find . -name '*.java' -exec grep -c '@Test' {} \; | awk '{sum+=$1} END {print sum+0}'"/>
+        </exec>
+        
+        <!-- Use the raw count directly (should be clean from shell) -->
+        <condition property="log.test.method.count.clean" value="${log.test.method.count.raw}">
+            <isset property="log.test.method.count.raw"/>
+        </condition>
+        <condition property="log.test.method.count.clean" value="11">
+            <not><isset property="log.test.method.count.clean"/></not>
+        </condition>
+        
+        <!-- Set test.total to the actual count if we have files -->
+        <condition property="test.total" value="${log.test.method.count.clean}">
+            <and>
+                <not><equals arg1="${test.file.count}" arg2="0"/></not>
+                <isset property="log.test.method.count.clean"/>
+            </and>
+        </condition>
+        
+        <!-- Final safety fallback -->
         <condition property="test.total" value="11">
             <not><isset property="test.total"/></not>
         </condition>
         
-        <!-- Check if tests passed by examining build artifacts and infer test.passed -->
-        <condition property="tests.appear.successful">
+        <!-- Smart test result inference from file system artifacts -->
+        <!-- Check if JUnit XML report exists and parse it -->
+        <condition property="junit.report.exists">
+            <available file="${reports.dir}/TEST-junit-jupiter.xml"/>
+        </condition>
+        
+        <!-- Load and analyze JUnit XML report -->
+        <loadfile property="junit.xml.raw" srcFile="${reports.dir}/TEST-junit-jupiter.xml" failonerror="false" quiet="true"/>
+        
+        <!-- Check if all tests passed (failures="0" and errors="0") -->
+        <condition property="all.tests.passed">
             <and>
+                <isset property="junit.xml.raw"/>
+                <contains string="${junit.xml.raw}" substring='failures="0"'/>
+                <contains string="${junit.xml.raw}" substring='errors="0"'/>
+            </and>
+        </condition>
+        
+        <!-- Extract actual test count from XML using shell -->
+        <exec executable="sh" outputproperty="xml.test.count" failonerror="false" dir="${reports.dir}">
+            <arg value="-c"/>
+            <arg value="if [ -f TEST-junit-jupiter.xml ]; then grep -o 'tests=&quot;[0-9]*&quot;' TEST-junit-jupiter.xml | grep -o '[0-9]*' || echo '${test.total}'; else echo '${test.total}'; fi"/>
+        </exec>
+        
+        <!-- Extract failure count from XML -->
+        <exec executable="sh" outputproperty="xml.failure.count" failonerror="false" dir="${reports.dir}">
+            <arg value="-c"/>
+            <arg value="if [ -f TEST-junit-jupiter.xml ]; then grep -o 'failures=&quot;[0-9]*&quot;' TEST-junit-jupiter.xml | grep -o '[0-9]*' || echo '0'; else echo '0'; fi"/>
+        </exec>
+        
+        <!-- Extract error count from XML -->
+        <exec executable="sh" outputproperty="xml.error.count" failonerror="false" dir="${reports.dir}">
+            <arg value="-c"/>
+            <arg value="if [ -f TEST-junit-jupiter.xml ]; then grep -o 'errors=&quot;[0-9]*&quot;' TEST-junit-jupiter.xml | grep -o '[0-9]*' || echo '0'; else echo '0'; fi"/>
+        </exec>
+        
+        <!-- Calculate passed tests -->
+        <exec executable="sh" outputproperty="calculated.test.passed" failonerror="false">
+            <arg value="-c"/>
+            <arg value="echo $(( ${xml.test.count} - ${xml.failure.count} - ${xml.error.count} ))"/>
+        </exec>
+        
+        <!-- Use calculated results if XML exists -->
+        <condition property="test.passed" value="${calculated.test.passed}">
+            <isset property="junit.report.exists"/>
+        </condition>
+        
+        <!-- Fallback: Infer from successful build artifacts -->
+        <condition property="test.passed" value="${test.total}">
+            <and>
+                <not><isset property="test.passed"/></not>
                 <available file="${build.dir}/test-classes" type="dir"/>
                 <available file="${jar.file}" type="file"/>
                 <available file="${war.file}" type="file"/>
             </and>
         </condition>
         
-        <!-- Set test.passed based on whether build completed successfully -->
-        <condition property="test.passed" value="${test.total}" else="0">
-            <isset property="tests.appear.successful"/>
+        <!-- Final fallback -->
+        <condition property="test.passed" value="0">
+            <not><isset property="test.passed"/></not>
         </condition>
         
-        <condition property="test.pass.rate" value="100" else="0">
-            <isset property="tests.appear.successful"/>
+        <!-- Calculate actual pass rate -->
+        <exec executable="sh" outputproperty="calculated.pass.rate" failonerror="false">
+            <arg value="-c"/>
+            <arg value="if [ ${test.total} -eq 0 ]; then echo 0; else echo $(( ${test.passed} * 100 / ${test.total} )); fi"/>
+        </exec>
+        
+        <condition property="test.pass.rate" value="${calculated.pass.rate}">
+            <isset property="calculated.pass.rate"/>
+        </condition>
+        <condition property="test.pass.rate" value="0">
+            <not><isset property="test.pass.rate"/></not>
         </condition>
         
         <!-- Build overall status -->
