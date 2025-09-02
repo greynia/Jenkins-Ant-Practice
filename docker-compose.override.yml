@@ -1,0 +1,18 @@
+# Docker Compose Override 檔案
+# 用於開發環境的特殊配置，可以覆蓋主配置
+
+version: '3.8'
+
+services:
+  jenkins:
+    # 開發模式：掛載更多目錄方便除錯
+    volumes:
+      - .:/workspace
+      # 如果你有本地的 JDK/Ant，可以掛載進去
+      # - /usr/local/ant:/usr/local/ant:ro
+      # - /usr/lib/jvm:/usr/lib/jvm:ro
+    environment:
+      # 開發模式：更詳細的日誌
+      - JAVA_OPTS=-Xmx1g -Djenkins.install.runSetupWizard=false
+      # 跳過初始設置（注意：這會使用預設密碼，僅用於開發）
+      - JENKINS_OPTS=--httpPort=8080 --prefix=/
